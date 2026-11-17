@@ -33,11 +33,18 @@ create table if not exists public.questions (
   position integer not null check (position >= 0),
   prompt text not null check (char_length(trim(prompt)) between 1 and 500),
   options jsonb not null check (jsonb_typeof(options) = 'array' and jsonb_array_length(options) = 4),
-  correct_option smallint not null check (correct_option between 0 and 3),
   points integer not null default 100 check (points between 0 and 10000),
   created_at timestamptz not null default now(),
   unique (room_id, position),
   unique (id, room_id)
+);
+
+-- Correct answers are stored separately so ordinary players cannot read them.
+create table if not exists public.question_keys (
+  question_id uuid primary key,
+  room_id uuid not null,
+  correct_option smallint not null check (correct_option between 0 and 3),
+  foreign key (question_id, room_id) references public.questions(id, room_id) on delete cascade
 );
 
 create table if not exists public.answers (
@@ -63,6 +70,7 @@ create index if not exists answers_room_idx on public.answers(room_id);
 alter table public.rooms enable row level security;
 alter table public.game_participants enable row level security;
 alter table public.questions enable row level security;
+alter table public.question_keys enable row level security;
 alter table public.answers enable row level security;
 
 -- Rooms are visible only to their owner and authenticated participants.
@@ -125,6 +133,17 @@ for all to authenticated
 using (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()))
 with check (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()));
 
+drop policy if exists "only room owner reads answer keys" on public.question_keys;
+create policy "only room owner reads answer keys" on public.question_keys
+for select to authenticated
+using (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()));
+
+drop policy if exists "room owner manages answer keys" on public.question_keys;
+create policy "room owner manages answer keys" on public.question_keys
+for all to authenticated
+using (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()))
+with check (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()));
+
 drop policy if exists "participants and owner read answers" on public.answers;
 create policy "participants and owner read answers" on public.answers
 for select to authenticated
@@ -148,6 +167,7 @@ declare
   v_room public.rooms%rowtype;
   v_participant public.game_participants%rowtype;
   v_question public.questions%rowtype;
+  v_correct_option smallint;
   v_correct boolean;
   v_awarded integer;
   v_total integer;
@@ -173,7 +193,11 @@ begin
     and position = v_room.current_question_position;
   if not found then raise exception 'Question is not currently active'; end if;
 
-  v_correct := p_selected_option = v_question.correct_option;
+  select correct_option into v_correct_option from public.question_keys
+  where question_id = v_question.id and room_id = v_room.id;
+  if not found then raise exception 'Answer key is not configured'; end if;
+
+  v_correct := p_selected_option = v_correct_option;
   v_awarded := case when v_correct then v_question.points else 0 end;
 
   insert into public.answers(room_id, question_id, participant_id, selected_option, is_correct, points_awarded)
