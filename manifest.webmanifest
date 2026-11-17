@@ -1,0 +1,11 @@
+{
+  "name": "החנוכיאדה המשפחתית הגדולה",
+  "short_name": "החנוכיאדה",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101b35",
+  "theme_color": "#101b35",
+  "icons": []
+}
