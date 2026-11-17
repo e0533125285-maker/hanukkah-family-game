@@ -22,3 +22,7 @@
 .answer:disabled{cursor:default;opacity:.8}
 button:disabled{opacity:.55;cursor:not-allowed;transform:none!important}
 @media(max-width:520px){.option-edit{align-items:stretch;flex-direction:column}.option-edit label{align-self:flex-start}.room-code strong{font-size:26px;letter-spacing:4px}.brand b{font-size:16px}}
+
+
+.player-leaderboard{margin-top:25px;padding-top:18px;border-top:1px solid #ffffff20}
+.player-leaderboard h3{color:#f1d38e}
