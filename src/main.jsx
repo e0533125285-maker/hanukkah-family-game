@@ -331,6 +331,12 @@ function App() {
           {selected !== null && <p className="waiting">התשובה נקלטה. מחכים לשאלה הבאה...</p>}
         </>}
         {notice && <p className="notice">{notice}</p>}
+        <div className="player-leaderboard">
+          <h3><Trophy/> מובילים כרגע</h3>
+          {sorted.slice(0, 5).length ? sorted.slice(0, 5).map((p, i) => (
+            <div className="leader" key={p.id}><b>{i + 1}. {p.display_name}</b><span>{p.score} נק׳</span></div>
+          )) : <p className="muted">טבלת המובילים תתעדכן כשהמשתתפים יצברו נקודות.</p>}
+        </div>
       </section>}
     </main>
     <footer>נוצר באהבה למשפחה ❤️ · חג חנוכה שמח</footer>
