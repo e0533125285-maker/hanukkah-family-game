@@ -18,7 +18,17 @@ const starterQuestions = [
   { prompt: 'מה מוסיפים בתפילה ובברכת המזון בחנוכה?', options: ['יעלה ויבוא', 'על הניסים', 'עננו', 'אב הרחמים'], correct: 1, points: 100 },
   { prompt: 'איך נקראים המטבעות שמקובל לתת בחנוכה?', options: ['דמי פורים', 'מעות חיטים', 'דמי חנוכה', 'מתנות לאביונים'], correct: 2, points: 100 },
   { prompt: 'כמה ימים נמשך חג החנוכה?', options: ['שבעה', 'שמונה', 'תשעה', 'עשרה'], correct: 1, points: 100 },
-  { prompt: 'באיזה כלי משחקים בסביבון?', options: ['בקלפים', 'בקוביות', 'בסביבון', 'בכדור'], correct: 2, points: 100 }
+  { prompt: 'באיזה כלי משחקים בסביבון?', options: ['בקלפים', 'בקוביות', 'בסביבון', 'בכדור'], correct: 2, points: 100 },
+  { prompt: 'באיזה תאריך עברי מתחיל חג החנוכה?', options: ['כ״ה בכסלו', 'א׳ בטבת', 'ט״ו בשבט', 'י׳ בניסן'], correct: 0, points: 100 },
+  { prompt: 'מי הנהיג את המרד נגד היוונים?', options: ['יהודה המכבי', 'דוד המלך', 'שמשון הגיבור', 'עזרא הסופר'], correct: 0, points: 100 },
+  { prompt: 'מה תפקידו של השמש בחנוכייה?', options: ['לקשט את החנוכייה', 'להדליק בעזרתו את הנרות', 'לסמן את היום בשבוע', 'להחליף את כל הנרות'], correct: 1, points: 100 },
+  { prompt: 'כמה נרות מדליקים בלילה השמיני, כולל השמש?', options: ['שמונה', 'תשעה', 'עשרה', 'שבעה'], correct: 1, points: 100 },
+  { prompt: 'איזה מאכלים מטוגנים מקובלים בחנוכה?', options: ['מצות וחרוסת', 'סופגניות ולביבות', 'אוזני המן', 'תמרים'], correct: 1, points: 100 },
+  { prompt: 'מה מציינים בחג החנוכה?', options: ['את יציאת מצרים', 'את נס פך השמן וחנוכת המקדש', 'את מתן תורה', 'את בניית המשכן'], correct: 1, points: 100 },
+  { prompt: 'באיזה בית מקדש התרחש סיפור חנוכה?', options: ['בבית המקדש הראשון', 'בבית המקדש השני', 'במשכן שילה', 'בבית הכנסת הגדול'], correct: 1, points: 100 },
+  { prompt: 'מהו השם הנוסף של לוחמי יהודה?', options: ['החשמונאים', 'הצדוקים', 'הפרושים', 'הנביאים'], correct: 0, points: 100 },
+  { prompt: 'איזה מזמור או תפילה אומרים בכל ימי החנוכה בתפילת שחרית?', options: ['הלל', 'סליחות', 'קבלת שבת', 'תפילת הדרך'], correct: 0, points: 100 },
+  { prompt: 'מה נהוג לתת לילדים בחנוכה?', options: ['דמי חנוכה', 'משלוח מנות', 'מתנות לאביונים', 'מחצית השקל'], correct: 0, points: 100 }
 ];
 
 function App() {
@@ -63,6 +73,11 @@ function App() {
         setUser(current);
         setAuthReady(true);
       }
+    }).catch(error => {
+      if (alive) {
+        setConfigError('ההתחברות נכשלה. בדקו את חיבור האינטרנט ואת הגדרות Supabase: ' + (error.message || 'שגיאה לא מוכרת'));
+        setAuthReady(true);
+      }
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (alive) setUser(session?.user ?? null);
@@ -77,7 +92,12 @@ function App() {
     if (!supabase || !id) return;
     const { data, error } = await supabase.from('game_participants')
       .select('id,display_name,score,team').eq('room_id', id).order('score', { ascending: false });
-    if (!error && data) setParticipants(data);
+    if (!error && data) {
+      setParticipants(data);
+      return data;
+    }
+    if (error) setNotice('לא הצלחנו לטעון את רשימת המשתתפים: ' + error.message);
+    return [];
   }, []);
 
   const loadRoomContent = useCallback(async (id, isHost) => {
@@ -88,11 +108,12 @@ function App() {
     ]);
     if (roomData) setRoom(roomData);
     if (questionData) setQuestions(questionData);
-    await loadParticipants(id);
+    const participantRows = await loadParticipants(id);
     if (isHost) {
       const { data: keys } = await supabase.from('question_keys').select('question_id,correct_option').eq('room_id', id);
       if (keys) setAnswerKeys(Object.fromEntries(keys.map(k => [k.question_id, k.correct_option])));
     }
+    return participantRows;
   }, [loadParticipants]);
 
   useEffect(() => {
@@ -172,8 +193,9 @@ function App() {
       setRoomId(joined.room_id);
       setRoom({ id: joined.room_id, code: roomCodeInput.trim(), status: 'lobby', current_question_position: 0 });
       setParticipantId(joined.participant_id);
-      setScore(0);
-      await loadRoomContent(joined.room_id, false);
+      const loadedParticipants = await loadRoomContent(joined.room_id, false);
+      const currentParticipant = loadedParticipants?.find(p => p.id === joined.participant_id);
+      setScore(currentParticipant?.score ?? 0);
       setScreen('play');
       setNotice('הצטרפת בהצלחה! מחכים שמנהל המשחק יתחיל.');
     } catch (error) {
