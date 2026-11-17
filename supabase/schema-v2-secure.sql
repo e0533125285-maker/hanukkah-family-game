@@ -152,6 +152,49 @@ using (
   or exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid())
 );
 
+
+-- Safe room entry: users cannot create a participant row for another account
+-- or join a room that is not accepting players.
+create or replace function public.join_game_room(
+  p_room_code text,
+  p_display_name text
+) returns table (room_id uuid, participant_id uuid, display_name text)
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_room public.rooms%rowtype;
+  v_participant public.game_participants%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+  if p_display_name is null or char_length(trim(p_display_name)) not between 1 and 32 then
+    raise exception 'Name must contain 1 to 32 characters';
+  end if;
+
+  select * into v_room
+  from public.rooms
+  where code = p_room_code and status = 'lobby';
+
+  if not found then
+    raise exception 'Room not found or not accepting players';
+  end if;
+
+  insert into public.game_participants(room_id, user_id, display_name)
+  values (v_room.id, auth.uid(), trim(p_display_name))
+  on conflict (room_id, user_id)
+  do update set display_name = excluded.display_name
+  returning * into v_participant;
+
+  return query select v_room.id, v_participant.id, v_participant.display_name;
+end;
+$;
+
+revoke all on function public.join_game_room(text, text) from public;
+grant execute on function public.join_game_room(text, text) to authenticated;
+
 -- Answers are submitted only through this transaction: correct answers and points
 -- are calculated on the database, and the unique key prevents repeat scoring.
 create or replace function public.submit_game_answer(
