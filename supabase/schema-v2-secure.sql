@@ -73,17 +73,30 @@ alter table public.questions enable row level security;
 alter table public.question_keys enable row level security;
 alter table public.answers enable row level security;
 
+
+-- Security-definer membership helper avoids recursive RLS policies.
+create or replace function public.is_room_member(p_room_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $
+  select exists (
+    select 1 from public.rooms r where r.id = p_room_id and r.owner_id = auth.uid()
+  ) or exists (
+    select 1 from public.game_participants p
+    where p.room_id = p_room_id and p.user_id = auth.uid()
+  );
+$;
+revoke all on function public.is_room_member(uuid) from public;
+grant execute on function public.is_room_member(uuid) to authenticated;
+
 -- Rooms are visible only to their owner and authenticated participants.
 drop policy if exists "room members can read room" on public.rooms;
 create policy "room members can read room" on public.rooms
 for select to authenticated
-using (
-  owner_id = auth.uid()
-  or exists (
-    select 1 from public.game_participants p
-    where p.room_id = rooms.id and p.user_id = auth.uid()
-  )
-);
+using (public.is_room_member(id));
 
 drop policy if exists "authenticated users create own rooms" on public.rooms;
 create policy "authenticated users create own rooms" on public.rooms
@@ -96,14 +109,7 @@ for update to authenticated using (owner_id = auth.uid()) with check (owner_id =
 drop policy if exists "room members read participants" on public.game_participants;
 create policy "room members read participants" on public.game_participants
 for select to authenticated
-using (
-  user_id = auth.uid()
-  or exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid())
-  or exists (
-    select 1 from public.game_participants self
-    where self.room_id = game_participants.room_id and self.user_id = auth.uid()
-  )
-);
+using (public.is_room_member(room_id));
 
 drop policy if exists "users join open rooms as themselves" on public.game_participants;
 create policy "users join open rooms as themselves" on public.game_participants
@@ -122,10 +128,7 @@ with check (exists (select 1 from public.rooms r where r.id = room_id and r.owne
 drop policy if exists "room members read questions" on public.questions;
 create policy "room members read questions" on public.questions
 for select to authenticated
-using (
-  exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid())
-  or exists (select 1 from public.game_participants p where p.room_id = questions.room_id and p.user_id = auth.uid())
-);
+using (public.is_room_member(room_id));
 
 drop policy if exists "room owner manages questions" on public.questions;
 create policy "room owner manages questions" on public.questions
@@ -144,6 +147,12 @@ for all to authenticated
 using (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()))
 with check (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()));
 
+drop policy if exists "room owner manages answer keys" on public.question_keys;
+create policy "room owner manages answer keys" on public.question_keys
+for all to authenticated
+using (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()))
+with check (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()));
+
 drop policy if exists "participants and owner read answers" on public.answers;
 create policy "participants and owner read answers" on public.answers
 for select to authenticated
@@ -151,7 +160,6 @@ using (
   exists (select 1 from public.game_participants p where p.id = participant_id and p.user_id = auth.uid())
   or exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid())
 );
-
 
 -- Safe room entry: users cannot create a participant row for another account
 -- or join a room that is not accepting players.
