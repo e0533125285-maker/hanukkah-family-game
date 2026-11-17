@@ -147,12 +147,6 @@ for all to authenticated
 using (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()))
 with check (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()));
 
-drop policy if exists "room owner manages answer keys" on public.question_keys;
-create policy "room owner manages answer keys" on public.question_keys
-for all to authenticated
-using (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()))
-with check (exists (select 1 from public.rooms r where r.id = room_id and r.owner_id = auth.uid()));
-
 drop policy if exists "participants and owner read answers" on public.answers;
 create policy "participants and owner read answers" on public.answers
 for select to authenticated
