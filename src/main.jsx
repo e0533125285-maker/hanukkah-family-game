@@ -63,6 +63,11 @@ function App() {
         setUser(current);
         setAuthReady(true);
       }
+    }).catch(error => {
+      if (alive) {
+        setConfigError('ההתחברות נכשלה. בדקו את חיבור האינטרנט ואת הגדרות Supabase: ' + (error.message || 'שגיאה לא מוכרת'));
+        setAuthReady(true);
+      }
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (alive) setUser(session?.user ?? null);
@@ -77,7 +82,12 @@ function App() {
     if (!supabase || !id) return;
     const { data, error } = await supabase.from('game_participants')
       .select('id,display_name,score,team').eq('room_id', id).order('score', { ascending: false });
-    if (!error && data) setParticipants(data);
+    if (!error && data) {
+      setParticipants(data);
+      return data;
+    }
+    if (error) setNotice('לא הצלחנו לטעון את רשימת המשתתפים: ' + error.message);
+    return [];
   }, []);
 
   const loadRoomContent = useCallback(async (id, isHost) => {
@@ -88,11 +98,12 @@ function App() {
     ]);
     if (roomData) setRoom(roomData);
     if (questionData) setQuestions(questionData);
-    await loadParticipants(id);
+    const participantRows = await loadParticipants(id);
     if (isHost) {
       const { data: keys } = await supabase.from('question_keys').select('question_id,correct_option').eq('room_id', id);
       if (keys) setAnswerKeys(Object.fromEntries(keys.map(k => [k.question_id, k.correct_option])));
     }
+    return participantRows;
   }, [loadParticipants]);
 
   useEffect(() => {
@@ -172,8 +183,9 @@ function App() {
       setRoomId(joined.room_id);
       setRoom({ id: joined.room_id, code: roomCodeInput.trim(), status: 'lobby', current_question_position: 0 });
       setParticipantId(joined.participant_id);
-      setScore(0);
-      await loadRoomContent(joined.room_id, false);
+      const loadedParticipants = await loadRoomContent(joined.room_id, false);
+      const currentParticipant = loadedParticipants?.find(p => p.id === joined.participant_id);
+      setScore(currentParticipant?.score ?? 0);
       setScreen('play');
       setNotice('הצטרפת בהצלחה! מחכים שמנהל המשחק יתחיל.');
     } catch (error) {
