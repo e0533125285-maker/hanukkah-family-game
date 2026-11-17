@@ -302,6 +302,11 @@ function App() {
           <div className="stats"><div><strong>{participants.length}</strong><small>משתתפים</small></div><div><strong>{questions.length}</strong><small>שאלות</small></div><div><strong>{room.status === 'playing' ? 'פעיל' : room.status === 'finished' ? 'הסתיים' : 'ממתין'}</strong><small>מצב החדר</small></div></div>
           {room.status === 'lobby' && <button className="primary full" onClick={startGame} disabled={busy}><Play/> התחלת החידון</button>}
           {room.status === 'playing' && <button className="primary full" onClick={advanceGame} disabled={busy}>{room.current_question_position === questions.length - 1 ? 'סיום החידון' : 'לשאלה הבאה'} <ArrowLeft/></button>}
+          {room.status === 'playing' && activeQuestion && <div className="question-card host-current-question">
+            <small>שאלה {activeQuestion.position + 1} מתוך {questions.length}</small>
+            <h3>{activeQuestion.prompt}</h3>
+            {activeQuestion.options.map((option, i) => <div className={'answer-line ' + (answerKeys[activeQuestion.id] === i ? 'correct' : '')} key={i}>{option}{answerKeys[activeQuestion.id] === i ? ' ✓ תשובה נכונה' : ''}</div>)}
+          </div>}
           {room.status === 'finished' && <div className="finished"><PartyPopper/> החידון הסתיים. חג שמח!</div>}
           {notice && <p className="notice">{notice}</p>}
           {room.status === 'lobby' && <div className="question-editor">
