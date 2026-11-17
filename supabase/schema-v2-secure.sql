@@ -81,14 +81,14 @@ language sql
 stable
 security definer
 set search_path = public
-as $
+as $$
   select exists (
     select 1 from public.rooms r where r.id = p_room_id and r.owner_id = auth.uid()
   ) or exists (
     select 1 from public.game_participants p
     where p.room_id = p_room_id and p.user_id = auth.uid()
   );
-$;
+$$;
 revoke all on function public.is_room_member(uuid) from public;
 grant execute on function public.is_room_member(uuid) to authenticated;
 
@@ -164,7 +164,7 @@ create or replace function public.join_game_room(
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_room public.rooms%rowtype;
   v_participant public.game_participants%rowtype;
@@ -192,7 +192,7 @@ begin
 
   return query select v_room.id, v_participant.id, v_participant.display_name;
 end;
-$;
+$$;
 
 revoke all on function public.join_game_room(text, text) from public;
 grant execute on function public.join_game_room(text, text) to authenticated;
