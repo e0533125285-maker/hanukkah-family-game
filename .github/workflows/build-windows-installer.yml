@@ -1,0 +1,31 @@
+name: Build Windows installer
+on:
+  push:
+    branches: [windows-desktop]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Extract app source
+        shell: pwsh
+        run: Expand-Archive -LiteralPath .windows-build/hanukkiahadiah-windows-source.zip -DestinationPath app
+      - name: Install dependencies
+        working-directory: app
+        run: npm install
+      - name: Build installer and portable EXE
+        working-directory: app
+        run: npm run dist:win
+      - name: Upload Windows installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hanukkiahadiah-Windows
+          path: app/release/*.exe
+          if-no-files-found: error
+          retention-days: 30
