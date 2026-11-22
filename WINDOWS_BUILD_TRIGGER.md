@@ -1,0 +1,1 @@
+Trigger the Windows installer build workflow. The desktop source bundle is stored under .windows-build/.
