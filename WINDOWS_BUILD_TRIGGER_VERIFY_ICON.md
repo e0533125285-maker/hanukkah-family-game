@@ -1,0 +1,1 @@
+Trigger build to verify Windows icon removal before packaging.
