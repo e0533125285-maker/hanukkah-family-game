@@ -1,0 +1,1 @@
+Trigger Windows build with recursive source package discovery.
