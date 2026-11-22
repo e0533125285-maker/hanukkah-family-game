@@ -17,8 +17,9 @@ jobs:
         shell: pwsh
         run: |
           $parts = @(Get-ChildItem -Path '.windows-build/source.parts' -Filter 'part-*.b64' | Sort-Object Name)
-          if ($parts.Count -ne 11) { throw "Expected 11 archive parts, found $($parts.Count)" }
+          if ($parts.Count -ne 18) { throw "Expected 18 archive parts, found $($parts.Count)" }
           $encoded = (($parts | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName).Trim() }) -join '')
+          if ($encoded.Length -ne 43780) { throw "Expected 43780 base64 characters, found $($encoded.Length)" }
           $bytes = [Convert]::FromBase64String($encoded)
           [System.IO.File]::WriteAllBytes((Join-Path $PWD 'hanukkiahadiah-source.zip'), $bytes)
           if ((Get-Item 'hanukkiahadiah-source.zip').Length -ne 32835) { throw 'Source archive size does not match expected 32835 bytes' }
