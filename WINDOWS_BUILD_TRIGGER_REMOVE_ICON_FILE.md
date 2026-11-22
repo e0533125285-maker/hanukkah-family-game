@@ -1,0 +1,1 @@
+Trigger build after removing the undersized icon file from build resources.
