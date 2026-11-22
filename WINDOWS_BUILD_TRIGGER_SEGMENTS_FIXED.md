@@ -1,0 +1,1 @@
+Trigger Windows packaging after matching all base64 source chunks to their original file digests.
