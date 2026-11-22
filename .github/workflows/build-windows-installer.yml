@@ -24,12 +24,20 @@ jobs:
           [System.IO.File]::WriteAllBytes((Join-Path $PWD 'hanukkiahadiah-source.zip'), $bytes)
           if ((Get-Item 'hanukkiahadiah-source.zip').Length -ne 32835) { throw 'Source archive size does not match expected 32835 bytes' }
           Expand-Archive -LiteralPath '.\hanukkiahadiah-source.zip' -DestinationPath app
+      - name: Inspect extracted package
+        shell: pwsh
+        run: |
+          Get-Content app/package.json
+          Get-ChildItem app
       - name: Install dependencies
         working-directory: app
         run: npm install
-      - name: Build installer and portable EXE
+      - name: Build web app
         working-directory: app
-        run: npm run dist:win
+        run: npm run build
+      - name: Build Windows installer and portable EXE
+        working-directory: app
+        run: npx electron-builder --win nsis portable --x64
       - name: Upload Windows installers
         uses: actions/upload-artifact@v4
         with:
