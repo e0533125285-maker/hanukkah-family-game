@@ -30,13 +30,14 @@ jobs:
           $package = Get-ChildItem -LiteralPath app -Filter 'package.json' -File -Recurse | Select-Object -First 1
           if (-not $package) { throw 'Could not find package.json in the extracted source archive.' }
           Set-Location $package.Directory.FullName
-          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));console.log('WIN ICON BEFORE:',p.build?.win?.icon);if(p.build?.win)delete p.build.win.icon;console.log('WIN ICON AFTER:',p.build?.win?.icon);fs.writeFileSync('package.json',JSON.stringify(p,null,2));"
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));if(p.build?.win)delete p.build.win.icon;fs.writeFileSync('package.json',JSON.stringify(p,null,2));"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Get-Content package.json | Select-String 'icon'
           npm install
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Test-Path 'build/icon.ico') { Remove-Item 'build/icon.ico' -Force }
+          if (Test-Path 'build/icon.ico') { throw 'The undersized Windows icon was not removed.' }
           npx electron-builder --win nsis portable --x64
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-ChildItem -Path release -Filter '*.exe' | Select-Object Name, Length
