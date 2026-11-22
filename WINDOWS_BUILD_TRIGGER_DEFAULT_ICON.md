@@ -1,0 +1,1 @@
+Trigger final Windows build with electron-builder default icon instead of the undersized custom ICO.
