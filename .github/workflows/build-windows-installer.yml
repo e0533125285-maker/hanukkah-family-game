@@ -13,9 +13,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Extract app source
+      - name: Reassemble source archive
         shell: pwsh
-        run: Expand-Archive -LiteralPath .windows-build/hanukkiahadiah-windows-source.zip -DestinationPath app
+        run: |
+          $parts = @(Get-ChildItem -Path '.windows-build/source.parts' -Filter 'part-*.b64' | Sort-Object Name)
+          if ($parts.Count -ne 11) { throw "Expected 11 archive parts, found $($parts.Count)" }
+          $encoded = (($parts | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName).Trim() }) -join '')
+          $bytes = [Convert]::FromBase64String($encoded)
+          [System.IO.File]::WriteAllBytes((Join-Path $PWD 'hanukkiahadiah-source.zip'), $bytes)
+          if ((Get-Item 'hanukkiahadiah-source.zip').Length -ne 32835) { throw 'Source archive size does not match expected 32835 bytes' }
+          Expand-Archive -LiteralPath '.\hanukkiahadiah-source.zip' -DestinationPath app
       - name: Install dependencies
         working-directory: app
         run: npm install
