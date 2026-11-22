@@ -1,0 +1,1 @@
+Trigger Windows build using explicit build and electron-builder commands.
