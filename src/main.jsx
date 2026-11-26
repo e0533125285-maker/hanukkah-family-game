@@ -30,6 +30,9 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState('login');
   const [room, setRoom] = useState(null);
   const [roomId, setRoomId] = useState(null);
   const [participantId, setParticipantId] = useState(null);
@@ -120,20 +123,50 @@ function App() {
   const activeQuestion = questions.find(q => q.position === room?.current_question_position) ?? questions[0] ?? null;
   const isHost = Boolean(user && room && room.owner_id === user.id);
 
-  async function signInWithGoogle() {
+  async function submitEmailAuth() {
     if (!supabase) {
       setNotice('החיבור לשרת עדיין לא הוגדר.');
       return;
     }
+    if (!email.trim() || !password) {
+      setNotice('יש למלא כתובת מייל וסיסמה.');
+      return;
+    }
+    if (password.length < 6) {
+      setNotice('הסיסמה חייבת להכיל לפחות 6 תווים.');
+      return;
+    }
     setBusy(true);
     setNotice('');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin }
-    });
-    if (error) {
+    try {
+      if (authMode === 'signup') {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { emailRedirectTo: window.location.origin }
+        });
+        if (error) throw error;
+        if (data.session) {
+          setUser(data.user);
+          setScreen('home');
+          setNotice('נרשמת והתחברת בהצלחה!');
+        } else {
+          setNotice('נשלח אליך מייל לאישור ההרשמה. פתח את המייל ולחץ על קישור האישור.');
+        }
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password
+        });
+        if (error) throw error;
+        setUser(data.user);
+        setScreen('home');
+        setNotice('התחברת בהצלחה!');
+      }
+    } catch (error) {
+      setNotice((authMode === 'signup' ? 'לא הצלחנו להירשם: ' : 'לא הצלחנו להתחבר: ') + (error.message || 'נסו שוב.'));
+    } finally {
       setBusy(false);
-      setNotice('לא הצלחנו להתחבר עם Google: ' + error.message);
     }
   }
 
@@ -295,14 +328,32 @@ function App() {
         <p className="intro">כולם משתתפים, כולם משחקים, וכל רגע הופך לזיכרון משפחתי.</p>
         <div className="hero-art"><div className="glow"></div><div className="menorah">✦ 🕎 ✦</div><div className="stars">✧　✦　✧　✦　✧</div></div>
         <div className="action-grid">
-          <button className="google-button" onClick={signInWithGoogle} disabled={busy || !supabase}>
-            <span className="google-g" aria-hidden="true">G</span>
-            {busy ? 'מתחברים...' : 'התחברות באמצעות Google'}
+          <button className="google-button" onClick={() => { setAuthMode('login'); setScreen('auth'); setNotice(''); }} disabled={busy || !supabase}>
+            <span aria-hidden="true">✉</span>
+            התחברות באמצעות מייל וסיסמה
           </button>
           <button className="primary" onClick={() => { setScreen('join'); setNotice(''); }}><Users/> אני רוצה להצטרף למשחק <ArrowLeft/></button>
           <button className="secondary" onClick={createRoom} disabled={busy || !supabase}><Crown/> {busy ? 'יוצרים חדר...' : 'כניסת מנהל ופתיחת משחק'}</button>
         </div>
         <div className="feature-row"><span><Flame/> משחקי חנוכה</span><span><Trophy/> ניקוד חי</span><span><ShieldCheck/> חדר פרטי</span></div>
+        {notice && <p className="notice">{notice}</p>}
+      </section>}
+
+      {screen === 'auth' && <section className="panel narrow">
+        <button className="back" onClick={() => { setScreen('home'); setNotice(''); }}>→ חזרה</button>
+        <div className="eyebrow">התחברות מאובטחת</div>
+        <h2>{authMode === 'signup' ? 'יצירת חשבון חדש' : 'התחברות לחשבון'}</h2>
+        <label>כתובת מייל</label>
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" autoComplete="email"/>
+        <label>סיסמה</label>
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="לפחות 6 תווים" autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}/>
+        <button className="primary full" onClick={submitEmailAuth} disabled={busy || !supabase}>
+          {busy ? 'רק רגע...' : authMode === 'signup' ? 'יצירת חשבון' : 'התחברות'}
+          <ArrowLeft/>
+        </button>
+        <button className="secondary full" onClick={() => { setAuthMode(authMode === 'signup' ? 'login' : 'signup'); setNotice(''); }}>
+          {authMode === 'signup' ? 'כבר יש לי חשבון — להתחברות' : 'אין לי חשבון — הרשמה חדשה'}
+        </button>
         {notice && <p className="notice">{notice}</p>}
       </section>}
 
