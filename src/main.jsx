@@ -139,13 +139,22 @@ function App() {
     setBusy(true);
     setNotice('');
     try {
+      const authRequest = authMode === 'signup'
+        ? supabase.auth.signUp({
+            email: email.trim(),
+            password,
+            options: { emailRedirectTo: window.location.origin }
+          })
+        : supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password
+          });
+      const timeout = new Promise((_, reject) =>
+        window.setTimeout(() => reject(new Error('השרת לא הגיב במשך 15 שניות. בדקו את החיבור לאינטרנט ונסו שוב.')), 15000)
+      );
+      const { data, error } = await Promise.race([authRequest, timeout]);
+      if (error) throw error;
       if (authMode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: { emailRedirectTo: window.location.origin }
-        });
-        if (error) throw error;
         if (data.session) {
           setUser(data.user);
           setScreen('home');
@@ -154,11 +163,7 @@ function App() {
           setNotice('נשלח אליך מייל לאישור ההרשמה. פתח את המייל ולחץ על קישור האישור.');
         }
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password
-        });
-        if (error) throw error;
+        if (!data?.user) throw new Error('השרת לא החזיר משתמש. נסו שוב.');
         setUser(data.user);
         setScreen('home');
         setNotice('התחברת בהצלחה!');
