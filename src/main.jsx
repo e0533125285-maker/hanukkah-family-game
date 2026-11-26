@@ -78,7 +78,7 @@ function App() {
 
   const loadParticipants = useCallback(async (id) => {
     if (!supabase || !id) return;
-    const { data, error } = await supabase.from('game_participants')
+    const { data, error } = await supabase.from('hanukkah_participants')
       .select('id,display_name,score,team').eq('room_id', id).order('score', { ascending: false });
     if (!error && data) setParticipants(data);
   }, []);
@@ -86,14 +86,14 @@ function App() {
   const loadRoomContent = useCallback(async (id, isHost) => {
     if (!supabase || !id) return;
     const [{ data: roomData }, { data: questionData }] = await Promise.all([
-      supabase.from('rooms').select('*').eq('id', id).single(),
-      supabase.from('questions').select('id,position,prompt,options,points').eq('room_id', id).order('position')
+      supabase.from('hanukkah_rooms').select('*').eq('id', id).single(),
+      supabase.from('hanukkah_questions').select('id,position,prompt,options,points').eq('room_id', id).order('position')
     ]);
     if (roomData) setRoom(roomData);
     if (questionData) setQuestions(questionData);
     await loadParticipants(id);
     if (isHost) {
-      const { data: keys } = await supabase.from('question_keys').select('question_id,correct_option').eq('room_id', id);
+      const { data: keys } = await supabase.from('hanukkah_question_keys').select('question_id,correct_option').eq('room_id', id);
       if (keys) setAnswerKeys(Object.fromEntries(keys.map(k => [k.question_id, k.correct_option])));
     }
   }, [loadParticipants]);
@@ -101,12 +101,12 @@ function App() {
   useEffect(() => {
     if (!supabase || !roomId) return;
     const channel = supabase.channel('game-room-' + roomId)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: 'id=eq.' + roomId }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hanukkah_rooms', filter: 'id=eq.' + roomId }, payload => {
         if (payload.new) setRoom(payload.new);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_participants', filter: 'room_id=eq.' + roomId }, () => loadParticipants(roomId))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: 'room_id=eq.' + roomId }, () => {
-        supabase.from('questions').select('id,position,prompt,options,points').eq('room_id', roomId).order('position')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hanukkah_participants', filter: 'room_id=eq.' + roomId }, () => loadParticipants(roomId))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hanukkah_questions', filter: 'room_id=eq.' + roomId }, () => {
+        supabase.from('hanukkah_questions').select('id,position,prompt,options,points').eq('room_id', roomId).order('position')
           .then(({ data }) => data && setQuestions(data));
       })
       .subscribe();
@@ -177,7 +177,7 @@ function App() {
       let created = null;
       for (let attempt = 0; attempt < 5 && !created; attempt++) {
         const code = String(Math.floor(100000 + Math.random() * 900000));
-        const result = await supabase.from('rooms')
+        const result = await supabase.from('hanukkah_rooms')
           .insert({ code, owner_id: user.id, status: 'lobby', current_question_position: 0 })
           .select('*').single();
         if (!result.error) created = result.data;
@@ -187,14 +187,14 @@ function App() {
       const questionRows = starterQuestions.map((q, position) => ({
         room_id: created.id, position, prompt: q.prompt, options: q.options, points: q.points
       }));
-      const { data: inserted, error: qError } = await supabase.from('questions').insert(questionRows).select('id,position');
+      const { data: inserted, error: qError } = await supabase.from('hanukkah_questions').insert(questionRows).select('id,position');
       if (qError) throw qError;
       const keys = inserted.map(row => ({
         room_id: created.id,
         question_id: row.id,
         correct_option: starterQuestions[row.position].correct
       }));
-      const { error: keyError } = await supabase.from('question_keys').insert(keys);
+      const { error: keyError } = await supabase.from('hanukkah_question_keys').insert(keys);
       if (keyError) throw keyError;
       setRoomId(created.id);
       setRoom(created);
@@ -213,7 +213,7 @@ function App() {
     if (!name.trim() || !/^\d{6}$/.test(roomCodeInput.trim())) return setNotice('יש למלא שם וקוד בן 6 ספרות.');
     setBusy(true); setNotice('');
     try {
-      const { data, error } = await supabase.rpc('join_game_room', {
+      const { data, error } = await supabase.rpc('hanukkah_join_game_room', {
         p_room_code: roomCodeInput.trim(), p_display_name: name.trim()
       });
       if (error) throw error;
@@ -234,7 +234,7 @@ function App() {
   async function startGame() {
     if (!room || !isHost) return;
     setBusy(true);
-    const { error } = await supabase.from('rooms').update({ status: 'playing', current_question_position: 0 }).eq('id', room.id);
+    const { error } = await supabase.from('hanukkah_rooms').update({ status: 'playing', current_question_position: 0 }).eq('id', room.id);
     setBusy(false);
     if (error) setNotice('לא ניתן להתחיל: ' + error.message);
     else setNotice('המשחק התחיל!');
@@ -246,7 +246,7 @@ function App() {
     const nextStatus = room.current_question_position >= last ? 'finished' : 'playing';
     const nextPosition = nextStatus === 'finished' ? room.current_question_position : room.current_question_position + 1;
     setBusy(true);
-    const { error } = await supabase.from('rooms').update({
+    const { error } = await supabase.from('hanukkah_rooms').update({
       status: nextStatus, current_question_position: nextPosition
     }).eq('id', room.id);
     setBusy(false);
@@ -257,7 +257,7 @@ function App() {
   async function submitAnswer(optionIndex) {
     if (!room || !activeQuestion || selected !== null || room.status !== 'playing') return;
     setSelected(optionIndex);
-    const { data, error } = await supabase.rpc('submit_game_answer', {
+    const { data, error } = await supabase.rpc('hanukkah_submit_game_answer', {
       p_room_code: room.code,
       p_question_id: activeQuestion.id,
       p_selected_option: optionIndex
@@ -280,12 +280,12 @@ function App() {
     setBusy(true);
     try {
       const position = questions.length;
-      const { data, error } = await supabase.from('questions').insert({
+      const { data, error } = await supabase.from('hanukkah_questions').insert({
         room_id: room.id, position, prompt: newPrompt.trim(),
         options: newOptions.map(o => o.trim()), points: 100
       }).select('id').single();
       if (error) throw error;
-      const { error: keyError } = await supabase.from('question_keys').insert({
+      const { error: keyError } = await supabase.from('hanukkah_question_keys').insert({
         room_id: room.id, question_id: data.id, correct_option: Number(newCorrect)
       });
       if (keyError) throw keyError;
