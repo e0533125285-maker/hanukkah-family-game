@@ -120,6 +120,23 @@ function App() {
   const activeQuestion = questions.find(q => q.position === room?.current_question_position) ?? questions[0] ?? null;
   const isHost = Boolean(user && room && room.owner_id === user.id);
 
+  async function signInWithGoogle() {
+    if (!supabase) {
+      setNotice('החיבור לשרת עדיין לא הוגדר.');
+      return;
+    }
+    setBusy(true);
+    setNotice('');
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+    if (error) {
+      setBusy(false);
+      setNotice('לא הצלחנו להתחבר עם Google: ' + error.message);
+    }
+  }
+
   async function createRoom() {
     if (!supabase || !user) return setNotice('החיבור עדיין לא מוכן. בדקו את הגדרות Supabase.');
     setBusy(true); setNotice('');
@@ -278,6 +295,10 @@ function App() {
         <p className="intro">כולם משתתפים, כולם משחקים, וכל רגע הופך לזיכרון משפחתי.</p>
         <div className="hero-art"><div className="glow"></div><div className="menorah">✦ 🕎 ✦</div><div className="stars">✧　✦　✧　✦　✧</div></div>
         <div className="action-grid">
+          <button className="google-button" onClick={signInWithGoogle} disabled={busy || !supabase}>
+            <span className="google-g" aria-hidden="true">G</span>
+            {busy ? 'מתחברים...' : 'התחברות באמצעות Google'}
+          </button>
           <button className="primary" onClick={() => { setScreen('join'); setNotice(''); }}><Users/> אני רוצה להצטרף למשחק <ArrowLeft/></button>
           <button className="secondary" onClick={createRoom} disabled={busy || !supabase}><Crown/> {busy ? 'יוצרים חדר...' : 'כניסת מנהל ופתיחת משחק'}</button>
         </div>
