@@ -52,18 +52,15 @@ function App() {
       return;
     }
     let alive = true;
-    supabase.auth.getSession().then(async ({ data, error }) => {
-      if (error) setConfigError(error.message);
-      let current = data?.session?.user ?? null;
-      if (!current) {
-        const result = await supabase.auth.signInAnonymously();
-        if (result.error) {
-          if (alive) setConfigError('לא ניתן להתחבר. יש להפעיל Anonymous Sign-ins ב-Supabase: ' + result.error.message);
-          current = null;
-        } else current = result.data.user;
-      }
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error && alive) setConfigError('לא הצלחנו לבדוק את מצב ההתחברות: ' + error.message);
       if (alive) {
-        setUser(current);
+        setUser(data?.session?.user ?? null);
+        setAuthReady(true);
+      }
+    }).catch(error => {
+      if (alive) {
+        setConfigError('לא ניתן להתחבר לשרת כרגע: ' + (error.message || 'בדקו את החיבור לאינטרנט.'));
         setAuthReady(true);
       }
     });
@@ -176,7 +173,13 @@ function App() {
   }
 
   async function createRoom() {
-    if (!supabase || !user) return setNotice('החיבור עדיין לא מוכן. בדקו את הגדרות Supabase.');
+    if (!supabase) return setNotice('החיבור לשרת עדיין לא הוגדר.');
+    if (!user) {
+      setAuthMode('login');
+      setScreen('auth');
+      setNotice('כדי לפתוח חדר כמנהל, יש להתחבר תחילה במייל ובסיסמה.');
+      return;
+    }
     setBusy(true); setNotice('');
     try {
       let created = null;
@@ -218,6 +221,14 @@ function App() {
     if (!name.trim() || !/^\d{6}$/.test(roomCodeInput.trim())) return setNotice('יש למלא שם וקוד בן 6 ספרות.');
     setBusy(true); setNotice('');
     try {
+      // Players receive a temporary guest account only when they actually join a room.
+      let currentUser = user;
+      if (!currentUser) {
+        const { data: guestData, error: guestError } = await supabase.auth.signInAnonymously();
+        if (guestError) throw new Error('לא ניתן להיכנס כאורח. יש לבדוק שהאפשרות Anonymous Sign-ins מופעלת ב-Supabase. ' + guestError.message);
+        currentUser = guestData.user;
+        setUser(currentUser);
+      }
       const { data, error } = await supabase.rpc('hanukkah_join_game_room', {
         p_room_code: roomCodeInput.trim(), p_display_name: name.trim()
       });
